@@ -106,6 +106,7 @@ REST_FRAMEWORK = {
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
+CSV_CHUNK_SIZE = 50000
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/

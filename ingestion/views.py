@@ -4,6 +4,7 @@ import pandas as pd
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
+from django.conf import settings
 from .models import (
     Store, User, PermanentJourneyPlan,
     StoreBrand, StoreType, City, State, Country, Region
@@ -38,70 +39,83 @@ class UploadStoresView(APIView):
         if not file:
             return Response({'error': 'No file provided'}, status=400)
         
-        df = pd.read_csv(file, dtype=str, keep_default_na=False)
+        existing_store_ids = set(Store.objects.values_list('store_id', flat=True))
 
         errors = []
         valid_stores = []
-        seen_ids = set()  
+        seen_ids = set()
+        total_success = 0
+        chunk_num = 0
 
-        for idx, row in df.iterrows():
-            row_num  = idx + 2 
-            store_id = row.get('store_id', '').strip()
-            name     = row.get('name', '').strip()
-            title    = row.get('title', '').strip()
+        for chunk in pd.read_csv(file, dtype=str, keep_default_na=False,
+                                  chunksize=settings.CSV_CHUNK_SIZE):
+            chunk_num += 1
+            print(f"Processing chunk {chunk_num} | rows {(chunk_num-1)*settings.CSV_CHUNK_SIZE + 1} to {chunk_num*settings.CSV_CHUNK_SIZE}")
 
-            if not store_id:
-                errors.append({'row': row_num, 'column': 'store_id', 'reason': 'Required field missing'})
-                continue
-            if store_id in seen_ids:
-                errors.append({'row': row_num, 'column': 'store_id', 'reason': 'Duplicate in file'})
-                continue
-            if Store.objects.filter(store_id=store_id).exists():
-                errors.append({'row': row_num, 'column': 'store_id', 'reason': 'Already exists in DB'})
-                continue
-            if not name:
-                errors.append({'row': row_num, 'column': 'name', 'reason': 'Required field missing'})
-                continue
-            if not title:
-                errors.append({'row': row_num, 'column': 'title', 'reason': 'Required field missing'})
-                continue
-            try:
-                lat = float(row.get('latitude', 0) or 0)
-            except ValueError:
-                errors.append({'row': row_num, 'column': 'latitude', 'reason': 'Must be a number'})
-                continue
-            try:
-                lng = float(row.get('longitude', 0) or 0)
-            except ValueError:
-                errors.append({'row': row_num, 'column': 'longitude', 'reason': 'Must be a number'})
-                continue
+            for idx, row in chunk.iterrows():
+                row_num  = idx + 2
+                store_id = row.get('store_id', '').strip()
+                name     = row.get('name', '').strip()
+                title    = row.get('title', '').strip()
 
-            seen_ids.add(store_id)
+                if not store_id:
+                    errors.append({'row': row_num, 'column': 'store_id', 'reason': 'Required field missing'})
+                    continue
+                if store_id in seen_ids:
+                    errors.append({'row': row_num, 'column': 'store_id', 'reason': 'Duplicate in file'})
+                    continue
 
-            fk_ids = {}
-            for field, Model in LOOKUP_MAP.items():
-                raw = row.get(field, '').strip()
-                if raw:
-                    obj, _ = Model.objects.get_or_create(name=normalize(raw))
-                    fk_ids[f'{field}_id'] = obj.id
+                if store_id in existing_store_ids:
+                    errors.append({'row': row_num, 'column': 'store_id', 'reason': 'Already exists in DB'})
+                    continue
+                if not name:
+                    errors.append({'row': row_num, 'column': 'name', 'reason': 'Required field missing'})
+                    continue
+                if not title:
+                    errors.append({'row': row_num, 'column': 'title', 'reason': 'Required field missing'})
+                    continue
+                try:
+                    lat = float(row.get('latitude', 0) or 0)
+                except ValueError:
+                    errors.append({'row': row_num, 'column': 'latitude', 'reason': 'Must be a number'})
+                    continue
+                try:
+                    lng = float(row.get('longitude', 0) or 0)
+                except ValueError:
+                    errors.append({'row': row_num, 'column': 'longitude', 'reason': 'Must be a number'})
+                    continue
 
-            valid_stores.append(Store(
-                store_id=store_id,
-                store_external_id=row.get('store_external_id', '').strip(),
-                name=name,
-                title=title,
-                latitude=lat,
-                longitude=lng,
-                is_active=parse_bool(row.get('is_active', 'true')),
-                **fk_ids
-            ))
+                seen_ids.add(store_id)
+                existing_store_ids.add(store_id) 
 
-        Store.objects.bulk_create(valid_stores)
+                fk_ids = {}
+                for field, Model in LOOKUP_MAP.items():
+                    raw = row.get(field, '').strip()
+                    if raw:
+                        obj, _ = Model.objects.get_or_create(name=normalize(raw))
+                        fk_ids[f'{field}_id'] = obj.id
+
+                valid_stores.append(Store(
+                    store_id=store_id,
+                    store_external_id=row.get('store_external_id', '').strip(),
+                    name=name,
+                    title=title,
+                    latitude=lat,
+                    longitude=lng,
+                    is_active=parse_bool(row.get('is_active', 'true')),
+                    **fk_ids
+                ))
+
+            if valid_stores:
+                Store.objects.bulk_create(valid_stores)
+                total_success += len(valid_stores)
+                print(f"Chunk {chunk_num} done | total inserted so far: {total_success}")
+                valid_stores = []
 
         return Response({
-            'success_count': len(valid_stores),
+            'success_count': total_success,
             'error_count':   len(errors),
-            'errors':        errors,
+            # 'errors':        errors,
         }, status=200 if not errors else 207)
 
 class UploadUsersView(APIView):
