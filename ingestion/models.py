@@ -49,11 +49,11 @@ class User(models.Model):
     modified_on = models.DateTimeField(auto_now=True)
 
 class PermanentJourneyPlan(models.Model):
-    user    = models.ForeignKey(User, on_delete=models.CASCADE)
-    store   = models.ForeignKey(Store, on_delete=models.CASCADE)
-    date       = models.DateField(null=True)
-    is_active  = models.BooleanField(default=True)
-    created_on  = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    store = models.ForeignKey(Store, on_delete=models.CASCADE)
+    date = models.DateField(null=True)
+    is_active = models.BooleanField(default=True)
+    created_on = models.DateTimeField(auto_now_add=True)
     modified_on = models.DateTimeField(auto_now=True)
 
     class Meta:
