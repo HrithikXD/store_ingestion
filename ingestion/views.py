@@ -104,9 +104,6 @@ class UploadStoresView(APIView):
             'errors':        errors,
         }, status=200 if not errors else 207)
 
-
-# ── Upload Users ──────────────────────────────────────────────────────────────
-
 class UploadUsersView(APIView):
     parser_classes = [MultiPartParser]
 
@@ -172,7 +169,6 @@ class UploadUsersView(APIView):
             'error_count':   len(errors),
             'errors':        errors,
         }, status=200 if not errors else 207)
-
 
 class UploadMappingView(APIView):
     parser_classes = [MultiPartParser]

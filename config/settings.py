@@ -101,7 +101,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.renderers.JSONRenderer'],
+    'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
 }
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
